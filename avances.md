@@ -220,6 +220,43 @@ en esta etapa.
   slugs reales se extraen ahora del propio `sitemap.xml`, no de memoria.
 - **Pendiente**: ninguno. Fase 9a cerrada.
 
+### 12. FASE 9b — Menú móvil (30/30 OK)
+
+- **Objetivo**: probar en navegador el focus trap, Escape y scroll lock, que hasta ahora
+  eran afirmaciones sin verificar.
+- **Método**: `src/components/MobileMenu.tsx` (246 líneas) verificado con teclado y mouse
+  reales vía CDP. **30 aserciones, 30 OK, 0 errores de consola.**
+- **Verificado**:
+  - Semántica: `role="dialog"`, `aria-modal="true"`, `aria-label="Menú de navegación"`.
+    `aria-expanded` alterna `false`/`true` y el `aria-label` del botón pasa de
+    "Abrir menú" a "Cerrar menú".
+  - **Focus trap**: 25 `Tab` hacia adelante + 25 `Shift+Tab` hacia atrás, **el foco nunca
+    salió del panel** y el ciclo da la vuelta correctamente. El overlay de fondo lleva
+    `tabindex="-1"` y por eso no falsea los extremos del ciclo (decisión correcta del
+    componente).
+  - **Foco inicial**: al abrir, el foco entra al botón "Cerrar menú" (dentro del dialog),
+    como exige `aria-modal`.
+  - **Escape**: cierra, **devuelve el foco al botón hamburguesa** y restaura el scroll.
+  - **Scroll lock**: `body.style.overflow` va `""` → `"hidden"` → `""`. Probado en
+    **3 ciclos consecutivos de abrir/cerrar sin estado sucio**. Con el menú abierto,
+    `window.scrollTo` no desplaza la página.
+  - Submenus: arrancan cerrados, expanden/contraen, su `<ul>` deja de tener `hidden`.
+    2 submenus (Servicios, Soluciones).
+  - Cierre por overlay, por botón X y **auto-cierre al navegar** (el `useEffect` sobre
+    `usePathname`), con el scroll restaurado tras navegar.
+  - La hamburguesa se oculta correctamente en ≥1024px (`lg:hidden`) y la nav de escritorio
+    queda intacta. Panel con `z-50`.
+- **Artefacto de test aclarado**: una primera versión del script reportaba `canScroll:false`
+  en el home. Se investigó y **no era un bug del sitio**: el script llamaba `window.scrollTo`
+  antes de que asintara el layout. Medido aparte, el home **sí** scrollea con holgura:
+  `scrollHeight` 15.770px a 375px, 10.661px a 768px, 9.017px a 1440px, con las 9 secciones
+  en `opacity:1` y altura real. Ninguna sección depende de un reveal para reservar alto.
+- **Detalle pendiente del bloqueante**: `WhatsappFab` usa `z-40` contra `z-50` del panel
+  (orden correcto) y aplica `pointer-events-none` cuando está oculto, así que **no
+  interfiere**. Pero **hoy no se renderiza**: `if (!href) return null` y `waLink()` devuelve
+  `null` por el `[COMPLETAR]`. Se verifica en la Fase 9c.
+- **Pendiente**: ninguno. Fase 9b cerrada.
+
 ---
 
 ## Estado actual
