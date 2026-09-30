@@ -257,6 +257,50 @@ en esta etapa.
   `null` por el `[COMPLETAR]`. Se verifica en la Fase 9c.
 - **Pendiente**: ninguno. Fase 9b cerrada.
 
+### 13. FASE 9c — Acordeón FAQ (33/33) y formulario + WhatsApp (16/16)
+
+**Acordeón de FAQ** — 33 aserciones, 33 OK, 0 errores de consola.
+
+- Verificado en las 3 páginas con acordeón: `/preguntas-frecuentes` (8 preguntas),
+  `/servicios/riego-por-goteo` (3) y `/soluciones/casas-y-jardines` (1).
+- Todos los paneles existen en el DOM, con `role="region"`, `aria-labelledby` que
+  corresponde al `id` del botón, `aria-expanded` coherente y exclusivity (siempre
+  **1 sola** abierta).
+- Abrir, cerrar con segundo clic y alternar con **Enter** y **Espacio** funciona; el foco
+  permanece en el botón. Jerarquía de encabezados correcta: `<h2>` en la página de FAQ
+  (cuelga del `<h1>`) y `<h3>` en los slugs de servicio/solución. `defaultOpen=0` y el
+  estado inicial es correcto.
+- La home **no** lleva acordeón: es correcto, sus dudas van en la página de FAQ.
+
+**Formulario y WhatsApp** — 16 aserciones, 16 OK.
+
+- **Método**: como `waLink()` devuelve `null` con el número `[COMPLETAR]`, toda la ruta de
+  WhatsApp era hoy **incapaz de probarse**. Se cargó un número **ficticio** (`5491100000000`)
+  solo en `src/config/site.ts`, se compiló, se midió, y **se revirtió**. Revertido y
+  verificado: el home vuelve a tener 0 enlaces `wa.me`, 15 marcadores `[COMPLETAR]`, y
+  `/contacto` vuelve a mostrar el aviso de formulario pendiente. **No queda ningun numero
+  falso en el repo.**
+- Con el número cargado se midieron **122 enlaces `wa.me` en las 20 rutas**: todos con el
+  número correcto, todos con `?text=`, `target="_blank"` y `rel` con `noopener`. 0 mal
+  formados. El mensaje decodifica bien (sin doble encoding).
+- **Formulario**: los 4 campos tienen `<label for>`. La validación nativa bloquea el envío
+  vacío (`nombre`, `mensaje`) y `minLength` funciona (nombre ≥2, mensaje ≥10). Al enviar,
+  `window.open` se invoca con `_blank` + `noopener,noreferrer` y la URL lleva el mensaje
+  armado con saludo + tipo + nombre + teléfono + mensaje, **sin placeholders ni `undefined`**.
+- **FAB de WhatsApp**: ahora sí se renderiza (`z-40`, `aria-label="Consultar por WhatsApp"`).
+  Arranca con `opacity:0` + `pointer-events-none` y solo aparece al scrollear >400px. Se
+  oculta al llegar al formulario de `/contacto` para no taparlo — verificado.
+
+- **Dos artefactos de test aclarados** (no son bugs del sitio):
+  - El primer build con el número temporal **no llegó a generar las páginas**: el filtro de
+    salida mostró "Compiled successfully" pero no "Generating static pages", y el servidor
+    sirvió el build viejo (0 enlaces wa.me). Se re-lanzó el build completo y recién ahí
+    apareció. **Regla: verificar que el build terminó (`26/26`) antes de medir**, no
+    confiar en "compiled successfully".
+  - En el mensaje armado aparece un `"corto"` residual: es texto que el propio script no
+    logró borrar del textarea al reutilizarlo. El armado del sitio es correcto.
+- **Pendiente**: ninguno. Fase 9c cerrada.
+
 ---
 
 ## Estado actual
