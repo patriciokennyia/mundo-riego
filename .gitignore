@@ -20,6 +20,12 @@
 # production
 /build
 
+# artefactos de build/export
+/dist
+
+# sitio viejo: respaldo, no va al repo
+/sitio viejo
+
 # misc
 .DS_Store
 *.pem

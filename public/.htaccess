@@ -1,0 +1,61 @@
+# Mundo Riego — configuracion de Apache para la exportacion estatica.
+#
+# Next.js genera las paginas como `servicios/riego-por-goteo/index.html`, asi que
+# el routing y el 404 los resuelve el propio hosting con DirectoryIndex y ErrorDocument.
+# Este archivo solo repone lo que `next.config.ts` ya no puede aplicar en modo estatico.
+
+# ---------------------------------------------------------------------------
+# Paginas de error
+# ---------------------------------------------------------------------------
+ErrorDocument 404 /404.html
+
+# ---------------------------------------------------------------------------
+# Cache de assets con hash en el nombre (JS, CSS) y de imagenes
+# ---------------------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css                "access plus 1 year"
+  ExpiresByType application/javascript  "access plus 1 year"
+  ExpiresByType text/javascript         "access plus 1 year"
+  ExpiresByType image/webp              "access plus 1 year"
+  ExpiresByType image/avif              "access plus 1 year"
+  ExpiresByType image/png               "access plus 1 year"
+  ExpiresByType image/svg+xml           "access plus 1 year"
+  # El HTML no se cachea: si se cambia un texto hay que verlo al instante.
+  ExpiresByType text/html               "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Mismo set que el de `next.config.ts`, que solo corre con servidor Node.
+  <FilesMatch "\.(html|css|js|webp|avif|png|jpg|jpeg|svg|ico|woff2?)$">
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  # Activa esto solo si el sitio va a servirse por HTTPS.
+  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression
+# ---------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml \
+    application/javascript application/json application/xml \
+    image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Cache busting de los chunks con hash: no volver a cachear si el nombre cambio
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  <FilesMatch "_next/static/.*\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# No listar el contenido de los directorios
+# ---------------------------------------------------------------------------
+Options -Indexes

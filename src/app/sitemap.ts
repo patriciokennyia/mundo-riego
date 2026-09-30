@@ -2,6 +2,9 @@ import type { MetadataRoute } from "next";
 import { services, solutions } from "@/content/catalog";
 import { site } from "@/config/site";
 
+// Necesario para `output: "export"`: sin esto Next exige que la ruta se declare estatica.
+export const dynamic = "force-static";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 

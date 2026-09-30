@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/config/site";
 
+// Necesario para `output: "export"`: sin esto Next exige que la ruta se declare estatica.
+export const dynamic = "force-static";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
