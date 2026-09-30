@@ -187,15 +187,58 @@ en esta etapa.
   - JSON-LD parsea correctamente en `/` (1 bloque), `/servicios/riego-por-goteo` (2),
     `/contacto` (2) y `/preguntas-frecuentes` (2) → **0 bloques inválidos**.
 
+### 11. FASE 9a — Testing responsive real (80 combinaciones)
+
+- **Objetivo**: reemplazar la suposición por evidencia medida en navegador.
+- **Herramienta**: no había Playwright ni Puppeteer en el proyecto. Se instaló
+  `puppeteer-core` **fuera del repo**, en `%TEMP%/opencode/qa/`, apuntando al Chrome del
+  sistema (`C:\Program Files\Google\Chrome\Application\chrome.exe`). El proyecto **no**
+  ganó dependencias nuevas.
+- **Cobertura**: 20 rutas × 4 anchos (375 / 768 / 1024 / 1440) = **80 combinaciones**,
+  con `waitUntil: networkidle0` y captura de `console.error` + `pageerror` en cada una.
+- **Resultado**:
+  - **0 desbordes horizontales** en las 80 combinaciones (`scrollWidth - clientWidth <= 1`).
+  - **0 errores de consola** y **0 fallos de carga**.
+  - **0 violaciones de WCAG 2.5.8** (tamaño mínimo de objetivo táctil).
+- **Falsos positivos descartados** (importante para no "arreglar" cosas sanas):
+  - *Texto cortado*: 361 avisos, **todos** de elementos `sr-only` (ancho 1px, clippeados a
+    propósito para lectores de pantalla) y del enlace "Saltar al contenido". Ninguno es real.
+  - *Targets táctiles*: 372 avisos, todos links de navegación del footer, migas y enlaces
+    de texto en prosa, de 20-26px de alto. Todos **cumplen la excepción de espaciado** de
+    WCAG 2.5.8. Medido por grupo en `/` a 375px:
+    - `ul.mt-4.space-y-2.5` — 14 links, 21px alto, **gap mínimo 14px** (se necesitan 3px) → OK
+    - `nav.flex.flex-wrap` (legales) — 3 links, 21px alto, **gap 8px** → OK
+    - Links de tarjeta — 23px alto, gap 414px → OK
+    - "Ver todos los servicios" / "Ver la galería" — 26px alto, gap 2943px → OK
+  - Los grupos de un solo elemento no tienen gap medible (enlace de email, "Conocé cómo
+    trabajamos"); no hay siblings con los que comparar, sin impacto real.
+- **Herramienta reutilizable**: `%TEMP%/opencode/qa/responsive.mjs` (grilla completa) y
+  `tap-spacing.mjs` (excepción de espaciado). No están en el repo a propósito: dependen de
+  una ruta de Chrome propia de esta PC.
+- **Nota de método**: el primer pase de rutas dio 5 errores 404 falsos por **slugs
+  inventados** (`riego-por-subterraneo`, `electroválvulas`, `predios-industriales`...). Los
+  slugs reales se extraen ahora del propio `sitemap.xml`, no de memoria.
+- **Pendiente**: ninguno. Fase 9a cerrada.
+
 ---
 
 ## Estado actual
 
-- **Build**: limpio, 26 páginas estáticas, 146 kB First Load JS compartido.
-- **Servidor de prueba**: `npm run start -- -p 3111` corriendo en background
-  (logs en `%TEMP%/opencode/ns5.log`).
+- **Build**: limpio, 26 páginas estáticas, 145 kB First Load JS compartido.
+  (Revalidado post-crash de la PC: sin pérdida de archivos.)
 - **Rutas**: 24/24 OK.
-- **imágenes**: 19 referencias, 0 rotas, 50 optimizadas por el optimizer verificadas.
+- **Imágenes**: 19 referencias, 0 rotas, 50 optimizadas por el optimizer verificadas.
+- **Servidor de prueba**: apagado (murió con el cuelgue de la PC). Los procesos `node.exe`
+  que quedaban vivos eran los servidores MCP (chrome-devtools, stitch), no Next.js.
+
+### Respaldo en git
+
+- **Commit `542e971`** — "Redesign completo Mundo Riego": 140 archivos, 20.607 inserciones.
+  Es el primer commit con trabajo real; antes solo existía el andamiaje de Create Next App
+  (`b9af58d`), por lo que una caída de la PC implicaba perder el rediseño completo.
+- Árbol de trabajo limpio. `sitio viejo/` (47 MB, 52 archivos) también quedó versionado:
+  es material del cliente y `scripts/regen-missing.mjs` regenera imágenes desde ahí.
+- **Regla de esta sesión**: commitear al cerrar cada punto de la Fase 9.
 
 ## Pendientes / notas
 
