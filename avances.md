@@ -372,3 +372,162 @@ marcados. **No inventar fotos ni datos**; se prefirió mostrar el espacio vacío
   `[System.IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`.
 - **El modelo no puede ver imágenes**: se clasificaron por análisis técnico
   (RGB/luminancia/% blanco) y metadatos, no por inspección visual.
+
+---
+
+## Sesión: Exportación estática y documento de textos (septiembre 2026)
+
+Todo lo de esta sesión está en el commit `69a7752` ("Add static export build, site texts doc,
+and exclude legacy assets"). Cierra el trabajo técnico: el sitio ya se puede entregar en un
+hosting compartido sin Node.js.
+
+### 14. FASE 10 — Modo exportación estática (hosting compartido)
+
+- **Objetivo**: poder entregar el sitio en un hosting compartido (subir archivos por FTP/cPanel),
+  donde no hay Node.js ni `next start`.
+- **Decisión de diseño clave**: el modo export **no** es siempre-activo. Se activa con la variable
+  de entorno `NEXT_OUTPUT=export` porque `output: "export"` **deshabilita `next start`**, y el
+  desarrollo y todo el testing de las Fases 9a-9c necesitan el servidor de Node. Con
+  `NEXT_OUTPUT` unset, `npm run build` sigue siendo el build normal con optimizador de imágenes.
+- **Cambios en `next.config.ts`**:
+  - `const isExport = process.env.NEXT_OUTPUT === "export"` y
+    `...(isExport ? { output: "export", trailingSlash: true } : {})`.
+  - `trailingSlash: true` a propósito: genera `servicios/riego-por-goteo/index.html` en vez de
+    `.../riego-por-goteo.html`, que es lo que resuelve Apache con `DirectoryIndex` sin configurar
+    nada. El hosting no necesita reglas de rewrite.
+  - `images.unoptimized: true` **solo** en export: no hay servidor que corra el optimizador, así
+    que se sirve el archivo de `public/` tal cual. Las imágenes ya están recomprimidas en WebP, de
+    modo que se pierde el `srcset` responsive pero no la calidad. La config con AVIF/WebP,
+    `deviceSizes` e `imageSizes` se conserva íntegra para el modo Node.
+  - Los headers de seguridad de `headers()` **solo se aplican con servidor Node**; en estático los
+    resuelve el `.htaccess` (mismo set de headers, ver punto siguiente).
+- **`src/app/sitemap.ts` y `src/app/robots.ts`**: se agregó `export const dynamic = "force-static"`
+  en ambos. Sin eso, Next exige que la ruta se declare estática y el export falla.
+- **Nuevo `public/.htaccess`** (61 líneas) — repone en Apache lo que `next.config.ts` ya no puede
+  aplicar en estático:
+  - `ErrorDocument 404 /404.html`.
+  - `ExpiresByType`: 1 año para css/js/webp/avif/png/svg, y **0 segundos para `text/html`** (si se
+    cambia un texto tiene que verse al instante, sin purgar caché).
+  - Los 4 headers de seguridad: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
+    `Permissions-Policy`.
+  - `mod_deflate` para comprimir html/plain/css/xml/js/json/svg.
+  - `Cache-Control: immutable` para `_next/static/*.{js,css}` (los chunks llevan hash).
+  - `Options -Indexes` para no listar directorios.
+  - `Strict-Transport-Security` está **comentado a propósito**: activar solo si el sitio va por
+    HTTPS, si no el navegador cachea el error y el sitio queda inutilizable.
+- **Nuevo `scripts/build-export.mjs`** (202 líneas) — build de export multiplataforma. Se hace desde
+  Node y no con `NEXT_OUTPUT=export next build` porque esa sintaxis de variable de entorno
+  **no existe en PowerShell ni en cmd de Windows**. El script: compila → verifica `out/` → comprime.
+  - Verificaciones pensadas para el hosting, no genéricas: existen `index.html`, `404.html`,
+    `robots.txt`, `sitemap.xml`, `.htaccess` e `images/`; las **20 rutas** existen como
+    `carpeta/index.html`; **0 referencias a `/_next/image`** (sería invocar un optimizador que no
+    existe en el hosting); y **todo link interno apunta a un archivo que realmente existe**.
+  - Empaquetado: `Compress-Archive -Path 'out\*'` en Windows, `zip -qr` en Linux. `out\*` ya incluye
+    los dotfiles como `.htaccess`, así que nombrarlo aparte lo duplicaba.
+- **Nuevo `scripts/serve-export.mjs`** (87 líneas) — servidor estático mínimo para **previsualizar
+  `out/` tal como lo va a servir el hosting**. No usa `next start` (no existe en export) ni agrega
+  dependencias: resuelve `ruta` → `ruta/index.html`, cae en `404.html` devolviendo status 404 real,
+  no sirve directorios, y blinda el path traversal con `normalize()` más un chequeo
+  `target.startsWith(root)`.
+- **`package.json`**: dos scripts nuevos, `build:static` y `preview:static`.
+- **Limpieza**: borrados los 5 SVG del andamiaje de Create Next App (`file.svg`, `globe.svg`,
+  `next.svg`, `vercel.svg`, `window.svg`).
+
+### 15. `textos-sitio.md` — documento de revisión de contenido para el cliente
+
+- **Objetivo**: el bloqueante de siempre eran los datos reales de contacto, y el cliente no iba a
+  leer un repositorio. Se generó un documento con **todos los textos que ya están escritos**, para
+  que apruebe lo que está y complete lo que falta.
+- **Cambios**: nuevo `textos-sitio.md` en la raíz (1112 líneas, 56 KB). Estructura:
+  - Resumen con conteos: 7 páginas + 13 subpáginas, 8 servicios, 5 soluciones, 8 FAQ generales +
+    28 por servicio/solución, **21 campos de empresa faltantes**, **3 fichas de galería faltantes**
+    (8 campos cada una), **18 textos con errores**.
+  - Convención de marcas: `?? FALTA` = hay que completarlo; `?? CORREGIR` = el texto está escrito
+    pero tiene un error (palabra en inglés mezclada, palabra cortada tipo `palabra(raw)`, typo) y hay
+    que aprobar la versión corregida.
+  - La sección 1 es la urgente: sin el número de WhatsApp **todos los botones de WhatsApp
+    desaparecen** y el formulario queda deshabilitado con el aviso "El formulario se activa al
+    completar el WhatsApp".
+- **Derivado**: `Textos-Mundo-Riego.docx` (26 KB) es **el mismo documento exportado a Word**, para
+  mandarlo al cliente. Verificar el punto 18: **no está versionado**.
+
+### 16. `sitio viejo/` y `wp_posts.csv` salieron del repo
+
+- **Motivo**: 47 MB de material del cliente (52 archivos) inflaban el repo sin aportar nada al
+  sitio en sí.
+- **Cambios**: `.gitignore` ahora ignora `/sitio viejo` y `/dist`. Se des-versionaron los 52
+  archivos de `sitio viejo/` (incluido `wp_posts.csv`, 7970 líneas) y los 5 SVG de andamiaje.
+- **Consecuencia a tener en cuenta**: `scripts/regen-missing.mjs` regenera 4 imágenes desde
+  `sitio viejo/` (`services/electroválvula.webp`, `services/electroválvula-alt.webp`,
+  `contact/contactenos.webp`, `contact/contactenos-ext.webp`). Esas imágenes **ya están
+  commiteadas**, así que el sitio no las necesita; pero si se borra la carpeta, ese script deja de
+  funcionar.
+- **Decisión**: el respaldo queda solo en el disco local. Si hay que volver atrás, el contenido sigue
+  recuperable desde git: `git show 69a7752^:"sitio viejo/wp_posts.csv"`.
+
+### 17. Verificación medida del build de exportación
+
+- Chequeo corrido hoy sobre `out/` (sin rebuild, `out/` es del 30/09 11:47 y es posterior al
+  último cambio de código):
+  - **126 archivos, 8,38 MB** en total; de eso, **44 imágenes = 3,4 MB**.
+  - **22 archivos HTML**: 20 rutas (`index.html` + 19 subpáginas) + `404.html` + `404/index.html`.
+    Next genera el 404 en las dos formas en modo export; el `.htaccess` usa `/404.html`.
+  - **0 páginas faltantes** de las 21 esperadas por el script.
+  - **0 referencias a `/_next/image`** en todo el HTML.
+  - **30 links internos únicos revisados, 0 rotos**.
+  - `robots.txt`, `sitemap.xml`, `.htaccess` e `images/` presentes dentro de `out/`.
+- **ZIP**: `dist/mundo-riego-estatico.zip`, **4,68 MB**.
+- **Lint**: `npm run lint` → **0 errores, 4 warnings**. Los 4 son imports o variables sin usar
+  (`path` en `next.config.ts`; `unlink` y `faviconFrom` en `process-images.mjs`; `existsSync` en
+  `reoptimize.mjs`). Ninguno rompe el build.
+
+### 18. Estado de git al dejar el proyecto
+
+- **6 commits**, todos en `main`, y **`main` == `origin/main`**: no hay nada sin pushear. Sin stashes.
+- Remote: `https://github.com/patriciokennyia/mundo-riego.git`.
+- **Único trabajo sin commitear**: `Textos-Mundo-Riego.docx` (26 KB) y `~$xtos-Mundo-Riego.docx`
+  (archivo temporal de Word, aparece porque el doc está abierto). El primero es el documento para el
+  cliente; si al volver ya no está, se regenera desde `textos-sitio.md`.
+- **Correcciones a notas de la sección anterior** (que quedaron desactualizadas):
+  - `package.json` **ya se llama `mundo-riego@1.0.0`**, no `mr-scaffold`. Eso quedó corregido en el
+    commit `542e971`.
+  - El warning "inferred your workspace root" **no** viene de un lockfile sobrante dentro del repo:
+    viene del **proyecto hermano** `C:\Users\Patricio\Documents\sitios\mundoriego`, que es un
+    scaffold de **Firebase Hosting sin usar** (index.html de bienvenida por defecto, `firebase.json`,
+    `.firebaserc`, su propio `package-lock.json` y su propio `node_modules`). No es parte de este
+    repo. Mitigación ya aplicada: `turbopack.root` en `next.config.ts`. La solución definitiva sería
+    borrar ese scaffold; **no se hizo**, por si se estaba probando algo ahí.
+
+---
+
+## Estado verificado al cierre de esta sesión
+
+- **Sitio**: completo y tested en modo Node (26 páginas estáticas, 24/24 rutas OK, Fases 9a-9c
+  cerradas con evidencia medida) y **completo y verificado en modo export estático**
+  (`out/` 126 archivos / 8,38 MB, ZIP de 4,68 MB, 0 links rotos).
+- **Calidad**: `npm run lint` 0 errores / 4 warnings. Build limpio.
+- **Git**: `main` sincronizado con `origin/main` en `69a7752`. 6 commits. Sin stashes.
+- **Repo**: `sitio viejo/` (47 MB) fuera de git pero presente en disco; recuperable desde
+  `69a7752^`.
+- **Sin commitear**: solo `Textos-Mundo-Riego.docx` y su temporal de Word.
+
+### Bloqueante (sigue igual, ahora también documentado para el cliente)
+
+**Falta el número de WhatsApp.** `src/config/site.ts:33` → `whatsappNumber: "[COMPLETAR]"`, y
+`waLink()` (`src/config/site.ts:151-157`) devuelve `null` mientras el valor empiece con
+`[COMPLETAR]`. Consecuencia: **todos los CTA de WhatsApp no se renderizan y el formulario de
+`/contacto` queda deshabilitado**. Hay **18 marcadores `[COMPLETAR]`** vivos: 17 en
+`src/config/site.ts` y 1 en `src/components/Header.tsx`. El detalle campo por campo está en
+`textos-sitio.md` §1 y en el `docx` que se le manda al cliente.
+
+### Para retomar
+
+1. Conseguir los 21 campos de empresa del cliente y cargar todo en `src/config/site.ts`.
+   Con eso se destraban WhatsApp y el formulario de una sola vez.
+2. Completar las 3 fichas de la galería (`catalog.ts` → `projects[]`) con fotos reales.
+3. Revisar los 18 `?? CORREGIR` de `textos-sitio.md` y aprobar los textos.
+4. Revalidar: `npm run build:static` y `npm run preview:static`, más repetir el testing de la Fase 9
+   sobre `out/` (los scripts de QA están en `%TEMP%/opencode/qa/`, fuera del repo, y dependen de la
+   ruta de Chrome de esta PC).
+5. Subir el **contenido** de `out/` (o el ZIP) a la raíz web del hosting. Si es Apache, el
+   `.htaccess` ya viaja dentro. Verificar que el dominio real sirva HTTPS antes de activar HSTS.
